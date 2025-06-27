@@ -1,6 +1,6 @@
 # BTrank
 
-BTrank is a lightweight appearance evaluation app designed for entertainment and personal curiosity. The app allows users to input various attributes such as appearance, body, outfit, temperament, makeup level, and filter intensity, and generates a score based on a scientifically smooth ranking algorithm. The ranking system uses logarithmic smoothing and normalized log scaling to prevent extreme score fluctuations. 
+BTrank is a lightweight appearance evaluation app designed specifically for the iOS system, aimed at entertainment and personal curiosity. The app allows users to input various attributes such as appearance, body, outfit, temperament, makeup level, and filter intensity, and generates a score based on a scientifically smooth ranking algorithm. The ranking system uses logarithmic smoothing and normalized log scaling to prevent extreme score fluctuations. 
 
 Disclaimer
 
