@@ -236,7 +236,7 @@ BTrank/
 
 本 App 仅供娱乐，所有数值和公式均为娱乐性质的设定，不构成对任何人的客观评价。
 
-本 App 的灵感来源于「上善若水」和「蛇鼠一窝」的群友，感谢他们的帮助，没有他们的帮助便没有这款产品。
+本 App 的灵感来源于「上善若水」和「蛇鼠一窝」的群友。感谢这些群友，以及 Claude，在公式与参数选择上给出的建议和帮助；没有他们，便没有这个项目。
 
 ---
 
@@ -472,4 +472,4 @@ Open `BTrank.xcodeproj` in Xcode and run on an iOS 18.4+ simulator or device. No
 
 This app is for entertainment only. All numbers and formulas are entertainment settings and do not constitute an objective evaluation of anyone.
 
-The inspiration for this app comes from the members of the "上善若水" and "蛇鼠一窝" group chats. Thank you for your help — without it this app would not exist.
+This app was inspired by the members of the "上善若水" and "蛇鼠一窝" group chats. Heartfelt thanks to them, and to Claude, for their advice and help in choosing the formulas and parameters — without them, this project would not exist.
