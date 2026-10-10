@@ -5,6 +5,28 @@
 
 import SwiftUI
 
+/// 评分输入框的问题类型
+enum InputIssue {
+    case notNumber      // 不是有效数字
+    case outOfRange     // 不在 0–10 之间
+
+    /// 输入框下方的红色提示
+    var inlineMessage: String {
+        switch self {
+        case .notNumber: return "无效数字，请输入 0–10 之间的数字"
+        case .outOfRange: return "超出范围，请输入 0–10 之间的数字"
+        }
+    }
+
+    /// 点击「计算分数」时的红色提示（前面接维度名）
+    func calculationMessage(for dimension: Dimension) -> String {
+        switch self {
+        case .notNumber: return "\(dimension.title)输入的不是有效数字"
+        case .outOfRange: return "\(dimension.title)分数不在 0–10 范围内"
+        }
+    }
+}
+
 final class ScoreViewModel: ObservableObject {
     // 输入
     @Published var name: String = ""
@@ -19,6 +41,8 @@ final class ScoreViewModel: ObservableObject {
     @Published var calculatedScore: Double?
     @Published var calculatedDims: [Double]?
     @Published var justAdded = false
+    /// 用户在输入不合法时点过「计算分数」：显示红色提示，直到输入改对
+    @Published var showCalcError = false
 
     // 排行榜数据（每次修改自动保存）
     @Published var people: [Person] = [] {
@@ -39,16 +63,51 @@ final class ScoreViewModel: ObservableObject {
 
     // MARK: 计算
 
-    /// 解析输入：空或非法 → 0，并限制在 0...10
-    private func parse(_ text: String) -> Double {
+    /// 某一维度当前的输入文本
+    private func text(for dimension: Dimension) -> String {
+        switch dimension {
+        case .base: return baseScore
+        case .body: return bodyScore
+        case .dressing: return dressing
+        case .temperament: return temperament
+        case .personality: return personalityScore
+        }
+    }
+
+    /// 把输入转成数字：空按 0，逗号当小数点；不是数字返回 nil
+    private func number(from text: String) -> Double? {
         let normalized = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
-        let value = Double(normalized) ?? 0
-        guard value.isFinite else { return 0 }
-        return min(max(value, 0), 10)
+        if normalized.isEmpty { return 0 }
+        guard let value = Double(normalized), value.isFinite else { return nil }
+        return value
+    }
+
+    /// 某一维度输入的问题；nil = 合法（空按 0 处理）
+    func issue(for dimension: Dimension) -> InputIssue? {
+        guard let value = number(from: text(for: dimension)) else { return .notNumber }
+        return (value < 0 || value > 10) ? .outOfRange : nil
+    }
+
+    /// 点击「计算分数」被拒绝后的红色提示；输入改对后自动消失
+    var calculationErrorMessage: String? {
+        guard showCalcError else { return nil }
+        let parts = Dimension.allCases.compactMap { dim in
+            issue(for: dim).map { $0.calculationMessage(for: dim) }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: "；") + "，无法计算"
     }
 
     func calculateScore() {
-        let dims = [baseScore, bodyScore, dressing, temperament, personalityScore].map(parse)
+        // 任何一项不合法就不计算，也不保留上一次的结果
+        guard Dimension.allCases.allSatisfy({ issue(for: $0) == nil }) else {
+            showCalcError = true
+            calculatedScore = nil
+            calculatedDims = nil
+            justAdded = false
+            return
+        }
+        showCalcError = false
+        let dims = Dimension.allCases.map { number(from: text(for: $0)) ?? 0 }
         calculatedDims = dims
         calculatedScore = ScoreEngine.score(raw: dims, adjustments: adjustments)
         justAdded = false
@@ -99,6 +158,7 @@ final class ScoreViewModel: ObservableObject {
         calculatedScore = nil
         calculatedDims = nil
         justAdded = false
+        showCalcError = false
     }
 
     // MARK: 持久化

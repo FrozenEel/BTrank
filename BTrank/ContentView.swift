@@ -45,11 +45,16 @@ struct CalculationView: View {
                     TextField("", text: $viewModel.name)
                         .multilineTextAlignment(.trailing)
                 }
-                ScoreField(title: "\(Dimension.base.fullTitle) (0-10)", text: $viewModel.baseScore)
-                ScoreField(title: "\(Dimension.body.fullTitle) (0-10)", text: $viewModel.bodyScore)
-                ScoreField(title: "\(Dimension.dressing.fullTitle) (0-10)", text: $viewModel.dressing)
-                ScoreField(title: "\(Dimension.temperament.fullTitle) (0-10)", text: $viewModel.temperament)
-                ScoreField(title: "\(Dimension.personality.fullTitle) (0-10)", text: $viewModel.personalityScore)
+                ScoreField(title: "\(Dimension.base.fullTitle) (0-10)", text: $viewModel.baseScore,
+                           issue: viewModel.issue(for: .base))
+                ScoreField(title: "\(Dimension.body.fullTitle) (0-10)", text: $viewModel.bodyScore,
+                           issue: viewModel.issue(for: .body))
+                ScoreField(title: "\(Dimension.dressing.fullTitle) (0-10)", text: $viewModel.dressing,
+                           issue: viewModel.issue(for: .dressing))
+                ScoreField(title: "\(Dimension.temperament.fullTitle) (0-10)", text: $viewModel.temperament,
+                           issue: viewModel.issue(for: .temperament))
+                ScoreField(title: "\(Dimension.personality.fullTitle) (0-10)", text: $viewModel.personalityScore,
+                           issue: viewModel.issue(for: .personality))
             }
 
             Section("补正") {
@@ -60,6 +65,11 @@ struct CalculationView: View {
                 Button("计算分数") {
                     viewModel.calculateScore()
                     UIApplication.shared.endEditing()
+                }
+                if let message = viewModel.calculationErrorMessage {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
                 }
                 Button("重置输入", role: .destructive) {
                     viewModel.resetInputs()
@@ -97,14 +107,23 @@ struct CalculationView: View {
 struct ScoreField: View {
     let title: String
     @Binding var text: String
+    var issue: InputIssue?
 
     var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            TextField("", text: $text)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                Spacer()
+                TextField("", text: $text)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(issue == nil ? Color.primary : Color.red)
+            }
+            if let issue {
+                Text(issue.inlineMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
     }
 }
@@ -142,27 +161,36 @@ struct AdjustmentsForm: View {
 
     @ViewBuilder
     private var bonusRows: some View {
-        Toggle("学历补正", isOn: $adj.education)
-        Toggle("事业补正", isOn: $adj.career)
-
         HStack {
-            Text("上镜度补正")
+            Text("学历 / 事业补正")
             Spacer()
-            Picker("上镜度补正", selection: $adj.cameraLook) {
-                ForEach(CameraLook.allCases) { look in
-                    Text(look.title).tag(look)
+            Picker("学历 / 事业补正", selection: $adj.statusBonus) {
+                ForEach(StatusBonus.allCases) { s in
+                    Text(s.title).tag(s)
                 }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(maxWidth: 220)
+            .frame(maxWidth: 200)
         }
 
-        Toggle("财富补正", isOn: $adj.wealth)
+        HStack {
+            Text("上镜度补正")
+            Spacer()
+            Picker("上镜度补正", selection: $adj.unphotogenic) {
+                Text("无").tag(false)
+                Text("有").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 140)
+        }
 
-        Text(String(format: "学历 / 事业 / 镜度的加分强度 %.0f%%（满额 100%%）", adj.strength * 100))
+        Text("上镜度补正：有 = 不上镜（本人比镜头里好看），加分；无 = 上镜，保持原样")
             .font(.footnote)
             .foregroundStyle(.secondary)
+
+        Toggle("财富补正", isOn: $adj.wealth)
     }
 
     @ViewBuilder
@@ -191,13 +219,15 @@ struct AdjustmentsForm: View {
         if adj.makeupEnabled {
             LevelPicker(level: $adj.makeupLevel)
         }
+        Text("化妆：妆容越浓、修饰越多，与素颜的差距越大，扣分越多")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
 
         Toggle("滤镜", isOn: $adj.filterEnabled)
         if adj.filterEnabled {
             LevelPicker(level: $adj.filterLevel)
         }
-
-        Text(String(format: "化妆 / 滤镜当前扣分 −%.2f%%（最多各 −6.25%%）", (1 - adj.deductionMultiplier) * 100))
+        Text("滤镜：滤镜越重，照片与真人的差距越大，扣分越多")
             .font(.footnote)
             .foregroundStyle(.secondary)
     }
@@ -398,6 +428,7 @@ struct RankingExportCard: View {
 struct ExportPreviewView: View {
     let image: UIImage
     @Environment(\.dismiss) private var dismiss
+    @State private var showShareSheet = false
 
     var body: some View {
         NavigationStack {
@@ -414,14 +445,31 @@ struct ExportPreviewView: View {
                     Button("关闭") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    ShareLink(item: Image(uiImage: image),
-                              preview: SharePreview("BTrank 排行榜", image: Image(uiImage: image))) {
+                    Button {
+                        showShareSheet = true
+                    } label: {
                         Label("分享", systemImage: "square.and.arrow.up")
                     }
                 }
             }
+            .sheet(isPresented: $showShareSheet) {
+                ShareSheet(items: [image])
+                    .presentationDetents([.medium, .large])
+            }
         }
     }
+}
+
+/// 系统分享面板（UIActivityViewController）。
+/// 直接把 UIImage 交给系统，微信、QQ 等第三方 App 的分享扩展才能识别为图片。
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - 工具

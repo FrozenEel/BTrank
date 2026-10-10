@@ -32,10 +32,9 @@ enum Dimension: Int, CaseIterable {
 // MARK: - 补正选项
 //
 // 一、加分补正（走「补正强度」，满额 = 100%）
-//   学历        有 +1 点
-//   事业        有 +1 点（和学历一样）
-//   镜度        上镜 0 / 一般 +0.5 / 不上镜 +1 点
-//   满额 = 学历 + 事业 + 不上镜 = 3 点 = 强度 100%，规则见 ScoreEngine.applyAdjustments：
+//   学历 / 事业  二选一（或都不选）：选其一 +1 点
+//   上镜度      无（上镜，指原始面容，不变）/ 有（不上镜，本人比镜头里好看，+1 点）
+//   满额 = 学历或事业 + 不上镜 = 2 点 = 强度 100%，规则见 ScoreEngine.applyAdjustments：
 //     综合基础分 < 6：  满额 +0.5 分
 //     综合基础分 ≥ 6：  满额 ×1.125（8 分 → 9 分）
 //   舍得        三选一：共同承担（不加不扣）/ 舍得（愿意为伴侣花钱）/ 不舍得（不愿在情感中花钱）
@@ -75,33 +74,25 @@ enum Generosity: Int, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// 镜度：上镜程度
-enum CameraLook: Int, CaseIterable, Identifiable, Codable {
-    case photogenic, average, unphotogenic
+/// 学历 / 事业补正：二选一
+enum StatusBonus: Int, CaseIterable, Identifiable, Codable {
+    case none, education, career
 
     var id: Int { rawValue }
     var title: String {
         switch self {
-        case .photogenic: return "上镜"
-        case .average: return "一般"
-        case .unphotogenic: return "不上镜"
-        }
-    }
-    var points: Double {
-        switch self {
-        case .photogenic: return 0
-        case .average: return 0.5
-        case .unphotogenic: return 1
+        case .none: return "无"
+        case .education: return "学历"
+        case .career: return "事业"
         }
     }
 }
 
 struct Adjustments: Codable, Equatable {
     // 加分补正
-    var education = false                       // 学历：默认无
-    var career = false                          // 事业：默认无
+    var statusBonus: StatusBonus = .none        // 学历 / 事业：二选一，默认都不选
     var generosity: Generosity = .none          // 舍得：默认「共同承担」（不加不扣），不走点数
-    var cameraLook: CameraLook = .photogenic    // 镜度：默认上镜（不加分）
+    var unphotogenic = false                    // 上镜度补正：默认无（上镜，不变）；有 = 不上镜，加分
     var wealth = false                          // 财富：默认无
 
     // 扣分补正
@@ -112,19 +103,17 @@ struct Adjustments: Codable, Equatable {
 
     // MARK: 加分补正强度
 
-    static let educationPoints = 1.0
-    static let careerPoints = 1.0        // 和学历一样
-    static let cameraMaxPoints = 1.0     // 不上镜
+    static let statusPoints = 1.0        // 学历 / 事业（二选一）
+    static let cameraPoints = 1.0        // 不上镜
 
     /// 加分点数
     var points: Double {
-        (education ? Adjustments.educationPoints : 0)
-        + (career ? Adjustments.careerPoints : 0)
-        + cameraLook.points
+        (statusBonus != .none ? Adjustments.statusPoints : 0)
+        + (unphotogenic ? Adjustments.cameraPoints : 0)
     }
 
-    /// 满额点数：学历 + 事业 + 不上镜 = 3
-    static let fullPoints = educationPoints + careerPoints + cameraMaxPoints
+    /// 满额点数：学历或事业 + 不上镜 = 2
+    static let fullPoints = statusPoints + cameraPoints
 
     /// 补正强度：1.0 = 满额
     var strength: Double { points / Adjustments.fullPoints }
@@ -149,10 +138,9 @@ struct Adjustments: Codable, Equatable {
     /// 历史记录里显示的补正摘要
     var summary: String {
         var parts: [String] = []
-        if education { parts.append("学历") }
-        if career { parts.append("事业") }
+        if statusBonus != .none { parts.append(statusBonus.title) }
         if generosity != .none { parts.append(generosity.title) }
-        if cameraLook != .photogenic { parts.append(cameraLook.title) }
+        if unphotogenic { parts.append("不上镜") }
         if wealth { parts.append("财富") }
         if makeupEnabled { parts.append("化妆·\(makeupLevel.title)") }
         if filterEnabled { parts.append("滤镜·\(filterLevel.title)") }
